@@ -12,39 +12,57 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; }
 
-        /* --- 徹底解決字體裁切方案 --- */
-        .fc-timegrid-event {
-            min-height: 48px !important; /* 強制最小高度 */
-        }
-        .fc-event-main {
-            padding: 4px 6px !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important; /* 垂直置中 */
-            line-height: 1.2 !important;
-            overflow: visible !important; 
-        }
-        .fc-event-title {
-            font-size: 12px !important;
-            font-weight: 700 !important;
-            white-space: normal !important;
-            word-break: break-all !important;
-            padding-bottom: 2px !important; /* 底部緩衝避免切字 */
-        }
-        .fc-event-time {
-            font-size: 10px !important;
-            margin-bottom: 2px !important;
-        }
+/* --- 修正字體裁切與排版問題的終極 CSS --- */
 
-        /* --- Hoover 美化 --- */
-        .fc-timegrid-slot { transition: all 0.2s ease; position: relative; }
-        .fc-timegrid-slot:hover { background-color: #f0f7ff !important; }
-        .fc-timegrid-slot:hover::after {
-            content: '+ 點擊排程';
-            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-            font-size: 11px; color: #3b82f6; font-weight: 900;
-            background: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 4px; pointer-events: none;
-        }
+/* 1. 事件容器：確保不溢出並垂直置中 */
+.fc-v-event {
+    border-radius: 6px !important;
+    border: none !important;
+    border-left: 4px solid rgba(0,0,0,0.2) !important; /* 左側深色條 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.fc-event-main {
+    padding: 2px 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important; /* 核心：垂直置中 */
+    line-height: 1.1 !important; /* 極窄行高防止底部裁切 */
+    overflow: hidden !important;
+}
+
+/* 2. 時間標籤 (如 下午12:30)：縮小字體 */
+.fc-event-time {
+    font-size: 10px !important; /* 縮小時間字體 */
+    font-weight: 500 !important;
+    margin-bottom: 1px !important;
+    opacity: 0.9;
+    white-space: nowrap !important;
+}
+
+/* 3. 標題內容 (姓名 / 項目)：微調字級 */
+.fc-event-title {
+    font-size: 11px !important; /* 稍微縮小字體以塞進更多字 */
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    display: block !important;
+    white-space: normal !important; /* 允許換行 */
+    word-break: break-all !important; /* 避免長字衝出框框 */
+    overflow: hidden !important;
+    text-overflow: ellipsis; /* 太長顯示... */
+    padding-bottom: 2px !important; /* 給文字底下的 descender (如'j','p'或中文筆畫) 留空間 */
+}
+
+/* 4. 針對 50 分鐘時段強制最小高度 */
+.fc-timegrid-event {
+    min-height: 55px !important; 
+}
+
+/* 5. 優化月曆格子的滑過效果 */
+.fc-timegrid-slot:hover {
+    background-color: #f0f9ff !important;
+    cursor: crosshair;
+}
 
         #loadingOverlay { 
             position: fixed; inset: 0; background: rgba(255,255,255,0.8); 
@@ -163,6 +181,9 @@ function populateDropdowns() {
             slotMinTime: '08:00:00',
             slotMaxTime: '21:00:00',
             allDaySlot: false,
+                slotDuration: '00:15:00', 
+    slotLabelInterval: '01:00', // 左側標籤維持一小時一個
+    expandRows: true,
             height: 'auto',
             selectable: true,
             nowIndicator: true,
@@ -192,18 +213,12 @@ function populateDropdowns() {
     }
 
 function formatEvents(apps) {
-    console.log("正在解析預約資料...", apps); // 偵錯用，可在瀏覽器 F12 看到
-    
     if (!apps || apps.length === 0) return [];
 
-    return apps.map((a, index) => {
-        // --- 強大偵錯與相容性處理 ---
-        // 取得物件的所有值，萬一標題對不上，我們可以用順序(Index)來抓
+    return apps.map((a) => {
         const values = Object.values(a);
         
-        // 根據您提供的 Appointments 標題順序：
-        // 0:ID, 1:日期, 2:時間, 3:患者姓名, 4:治療師, 5:項目名稱, 6:實收費用, 7:狀態, 8:建立時間, 9:備註
-        
+        // 根據欄位順序抓取 (請確保順序正確)
         const id = a['ID'] || values[0];
         const dateStr = a['日期'] || values[1];
         const timeStr = a['時間'] || values[2];
@@ -214,19 +229,19 @@ function formatEvents(apps) {
         const status = a['狀態'] || values[7];
         const notes = a['備註'] || values[9];
 
-        // 格式化日期與時間
         if (!dateStr || !timeStr) return null;
+
+        // 格式化日期與時間 (支援 2024/01/01 或 2024-01-01)
         const cleanDate = dateStr.toString().replace(/\//g, '-').trim();
         const cleanTime = timeStr.toString().substring(0, 5).trim();
-
-        // 拼接成 FullCalendar 要求的 ISO 格式
         const startISO = `${cleanDate}T${cleanTime}:00`;
 
         return {
             id: id,
-            // 月曆方塊上顯示的文字
+            // 標題優化：只保留最重要的兩項，減少垂直佔用空間
             title: `${patientName} / ${itemName}`, 
             start: startISO,
+            // 療程設定為 50 分鐘
             end: moment(startISO).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'),
             backgroundColor: status === '已完成' ? '#10b981' : '#4f46e5',
             extendedProps: {
@@ -241,7 +256,7 @@ function formatEvents(apps) {
         };
     }).filter(e => e !== null);
 }
-
+    
     function calculateEndTime(startTime) {
         let [h, m] = startTime.split(':').map(Number);
         m += 50; if (m >= 60) { h += 1; m -= 60; }
