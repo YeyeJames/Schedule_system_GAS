@@ -3,130 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>診所專業預約系統</title>
+    <title>Clinic Pro | 專業排程管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- 引入 moment 處理時間 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <style>
-        /* 新增：滑鼠滑過時段的高亮特效 */
+        /* --- Hoover 功能美化 --- */
+        .fc-timegrid-slot {
+            transition: all 0.2s;
+            position: relative;
+        }
         .fc-timegrid-slot:hover {
-            background-color: #e0e7ff !important; /* 淺藍色高亮 */
-            cursor: cell;
+            background-color: #f0f7ff !important;
+            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.1);
+            cursor: pointer;
         }
-        /* 讓月曆事件更美觀 */
-        .fc-event {
+        .fc-timegrid-slot:hover::after {
+            content: '+ 新增預約';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: #3b82f6;
+            font-weight: bold;
+            opacity: 0.6;
+        }
+
+        /* --- 月曆事件美化 --- */
+        .fc-v-event {
             border: none !important;
-            padding: 2px !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid rgba(0,0,0,0.2) !important;
+            border-radius: 8px !important;
+            padding: 4px !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
         }
+        .fc-event-title { font-weight: 700 !important; font-size: 13px; }
+        .fc-event-time { font-size: 11px; opacity: 0.9; }
+
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     </style>
 </head>
-<body class="bg-slate-50">
+<body class="bg-slate-50 text-slate-900 min-h-screen">
 
-<div id="loadingOverlay" style="display:none;">
-    <div class="bg-white p-5 rounded-lg shadow-xl flex items-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
-        <span class="font-bold text-gray-700">同步資料中...</span>
-    </div>
+<div id="loadingOverlay">
+    <div class="animate-bounce mb-4 text-4xl">🗓️</div>
+    <div class="text-indigo-600 font-black tracking-widest animate-pulse">SYSTEM LOADING...</div>
 </div>
 
 <div class="max-w-7xl mx-auto p-4">
-    <header class="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div>
-            <h1 class="text-3xl font-black text-indigo-800">Clinic Pro</h1>
-            <p class="text-slate-500 text-sm">自費治療排程系統</p>
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mt-4">
+        <div class="flex items-center gap-4">
+            <div class="bg-indigo-600 p-3 rounded-2xl shadow-indigo-200 shadow-lg text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Clinic Pro <span class="text-indigo-600">Scheduler</span></h1>
+                <div id="connectionStatus" class="flex items-center text-xs text-green-500 font-bold uppercase tracking-wider">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-ping"></span> 連線中
+                </div>
+            </div>
         </div>
-        <nav class="flex gap-2 mt-4 md:mt-0">
-            <button onclick="showTab('calendar-view')" class="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">預約排程表</button>
-            <button onclick="showTab('stats-view')" class="px-6 py-2 rounded-xl bg-white text-slate-600 font-bold border border-slate-200 hover:bg-slate-50 transition">數據報表</button>
+        <nav class="flex p-1 bg-slate-100 rounded-2xl mt-4 md:mt-0">
+            <button onclick="showTab('calendar-view')" class="px-6 py-2 rounded-xl bg-white text-indigo-600 font-bold shadow-sm transition">月曆看板</button>
+            <button onclick="showTab('stats-view')" class="px-6 py-2 rounded-xl text-slate-500 font-bold hover:text-indigo-600 transition">業績報表</button>
         </nav>
     </header>
 
-    <div id="calendar-view" class="tab-content active">
-        <div class="bg-white p-4 md:p-8 rounded-3xl shadow-xl border border-slate-100">
+    <main id="calendar-view" class="tab-content active">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-white">
             <div id="calendar"></div>
         </div>
-    </div>
+    </main>
 
-    <!-- 統計介面 (保留之前的邏輯) -->
-    <div id="stats-view" class="tab-content">
-        <!-- 此處可放之前的統計代碼 -->
-    </div>
+    <!-- 統計介面 (簡化顯示) -->
+    <main id="stats-view" class="tab-content">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl">
+            <h2 class="text-2xl font-bold mb-6">統計報告 (開發中...)</h2>
+        </div>
+    </main>
 </div>
 
-<!-- 預約彈窗 (Modal) -->
-<div id="bookingModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div class="bg-indigo-600 p-6">
-            <h2 class="text-2xl font-bold text-white">建立新預約</h2>
+<!-- 新增預約 Modal -->
+<div id="bookingModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex justify-center items-center p-4">
+    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-white">
+        <div class="bg-indigo-600 p-6 text-white flex justify-between items-center">
+            <h3 class="text-xl font-bold">新預約登記</h3>
+            <button onclick="closeModal()" class="text-white/80 hover:text-white">✕</button>
         </div>
-        <form id="bookingForm" class="p-8 space-y-4">
+        <form id="bookingForm" class="p-8 space-y-5">
             <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="text-xs font-bold text-slate-400 uppercase">預約日期</label>
-                    <input type="date" id="formDate" required class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">預約日期</label>
+                    <input type="date" id="formDate" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                 </div>
-                <div>
-                    <label class="text-xs font-bold text-slate-400 uppercase">起始時間</label>
-                    <input type="time" id="formTime" required class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">起始時間</label>
+                    <input type="time" id="formTime" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                 </div>
             </div>
-            <div>
-                <label class="text-xs font-bold text-slate-400 uppercase">患者姓名</label>
-                <input type="text" id="formName" placeholder="輸入姓名" required class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+            <div class="space-y-1">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">患者姓名</label>
+                <input type="text" id="formName" required placeholder="例如：王小明" class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
             </div>
             <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="text-xs font-bold text-slate-400 uppercase">負責治療師</label>
-                    <select id="formTherapist" required class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">治療師</label>
+                    <select id="formTherapist" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
                 </div>
-                <div>
-                    <label class="text-xs font-bold text-slate-400 uppercase">治療項目</label>
-                    <select id="formItem" onchange="updatePrice()" required class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">項目</label>
+                    <select id="formItem" onchange="updatePrice()" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
                 </div>
             </div>
-            <div>
-                <label class="text-xs font-bold text-slate-400 uppercase">收費金額</label>
-                <input type="number" id="formFee" required class="w-full border-slate-200 border p-3 rounded-xl bg-slate-50 font-mono font-bold text-indigo-600">
+            <div class="space-y-1">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">收費金額</label>
+                <input type="number" id="formFee" required class="w-full bg-indigo-50 border-none p-3 rounded-xl font-bold text-indigo-700 outline-none">
             </div>
-            <div>
-                <label class="text-xs font-bold text-slate-400 uppercase">備註事項</label>
-                <textarea id="formNotes" placeholder="例如：患者術後、需特別注意..." class="w-full border-slate-200 border p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none h-20"></textarea>
+            <div class="space-y-1">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">備註</label>
+                <textarea id="formNotes" class="w-full bg-slate-50 border-none p-3 rounded-xl h-20 outline-none text-sm" placeholder="輸入特殊需求..."></textarea>
             </div>
-            
-            <div class="flex space-x-3 pt-4">
-                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">取消</button>
-                <button type="submit" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">送出預約</button>
-            </div>
+            <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition transform hover:-translate-y-1">確認預約</button>
         </form>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwXiUJUt1cm1hnTPy57FAQ4hJpRqg5kFHJq02L4HkePHqc73HFDLWmYpvltRI2IVkPT2A/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbwRKHVzuYXtOpl188khy-J9mNwQYpeT5EPSmmugdU0nY_BIkjCj_nD7jXefgHMaoxtokQ/exec"; 
     let calendar;
-    let rawData = { appointments: [], therapists: [], treatments: [] };
+    let db = { appointments: [], therapists: [], treatments: [] };
 
-    document.addEventListener('DOMContentLoaded', initSystem);
+    document.addEventListener('DOMContentLoaded', init);
 
-    async function initSystem() {
+    async function init() {
         showLoading(true);
         try {
             const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'init' }) });
-            rawData = await resp.json();
+            db = await resp.json();
             
-            document.getElementById('formTherapist').innerHTML = '<option value="">選擇治療師</option>' + 
-                rawData.therapists.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
-            document.getElementById('formItem').innerHTML = '<option value="">選擇項目</option>' + 
-                rawData.treatments.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+            console.log("從雲端載入的資料:", db.appointments); // 偵錯用
+
+            document.getElementById('formTherapist').innerHTML = db.therapists.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+            document.getElementById('formItem').innerHTML = db.treatments.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
 
             renderCalendar();
         } catch (e) {
-            console.error(e);
-            Swal.fire('連線錯誤', '請確認 GAS 部署是否正確', 'error');
+            Swal.fire('Error', '無法讀取資料庫，請檢查 API URL', 'error');
         }
         showLoading(false);
     }
@@ -137,68 +166,60 @@
 
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridWeek',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            },
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
             locale: 'zh-tw',
             slotMinTime: '08:00:00',
             slotMaxTime: '22:00:00',
-            expandRows: true,
             allDaySlot: false,
+            height: 'auto',
             navLinks: true,
             selectable: true,
-            selectMirror: true,
-            // 點擊空白處新增預約
+            nowIndicator: true,
             select: function(info) {
-                const date = info.startStr.split('T')[0];
-                const time = info.startStr.split('T')[1]?.substring(0,5) || "09:00";
-                openModal(date, time);
+                openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5));
             },
-            // 點擊事件查看
             eventClick: function(info) {
                 const app = info.event.extendedProps;
                 Swal.fire({
-                    title: `<span class="text-indigo-600">${app.patient}</span>`,
-                    html: `
-                        <div class="text-left text-sm space-y-2">
-                            <p><b>項目：</b> ${app.item}</p>
-                            <p><b>治療師：</b> ${app.therapist}</p>
-                            <p><b>收費：</b> $${app.fee}</p>
-                            <p><b>備註：</b> ${app.notes || '無'}</p>
-                            <p><b>狀態：</b> <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700">${app.status}</span></p>
-                        </div>
-                    `,
+                    title: `患者: ${app.patient}`,
+                    html: `<div class='text-left text-sm space-y-1'>
+                           <p>📋 項目: ${app.item}</p>
+                           <p>🧑‍⚕️ 治療師: ${app.therapist}</p>
+                           <p>💰 金額: $${app.fee}</p>
+                           <p>📝 備註: ${app.notes || '無'}</p>
+                           <p>📍 狀態: ${app.status}</p></div>`,
                     showDenyButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: '設為完成',
-                    denyButtonText: '刪除預約',
-                    cancelButtonText: '關閉'
+                    confirmButtonText: '完成治療',
+                    denyButtonText: '刪除預約'
                 }).then(async (result) => {
-                    if (result.isConfirmed) updateAppStatus(app.id, '已完成');
+                    if (result.isConfirmed) updateStatus(app.id, '已完成');
                     else if (result.isDenied) deleteApp(app.id);
                 });
             },
-            events: formatEvents(rawData.appointments)
+            // 將事件渲染到月曆
+            events: formatEvents(db.appointments)
         });
         calendar.render();
     }
 
-    // 格式化資料，確保預約顯示在月曆上
     function formatEvents(apps) {
         return apps.map(a => {
-            // 處理日期格式 (確保格式為 YYYY-MM-DD)
-            const dateStr = a.日期.includes('T') ? a.日期.split('T')[0] : a.日期;
-            const startISO = `${dateStr}T${a.時間}`;
+            // 拼接 ISO 8601 時間格式: YYYY-MM-DDTHH:mm:ss
+            // 強制格式檢查
+            const startTime = `${a.日期}T${a.時間}:00`;
+            const isValid = moment(startTime).isValid();
             
+            if(!isValid) {
+                console.warn("跳過無效預約資料:", a);
+                return null;
+            }
+
             return {
                 id: a.ID,
-                title: `${a.患者姓名} | ${a.項目}`,
-                start: startISO,
-                // 預設 50 分鐘療程，留 10 分鐘緩衝
-                end: moment(startISO).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'), 
-                backgroundColor: getEventColor(a.狀態),
+                title: `${a.患者姓名} (${a.治療師})`,
+                start: startTime,
+                end: moment(startTime).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'),
+                backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#4f46e5',
                 extendedProps: {
                     patient: a.患者姓名,
                     therapist: a.治療師,
@@ -209,17 +230,24 @@
                     id: a.ID
                 }
             };
-        }).filter(e => !isNaN(new Date(e.start).getTime())); // 過濾掉無效日期
+        }).filter(e => e !== null);
     }
 
-    function getEventColor(status) {
-        if (status === '已完成') return '#10b981';
-        if (status === '請假') return '#f59e0b';
-        return '#6366f1';
+    // Modal 與 API 互動 (同上個版本，但確保 add 時包含 notes)
+    async function updateStatus(id, status) {
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id, status }) });
+        await init();
     }
 
-    function openModal(date = '', time = '') {
-        document.getElementById('bookingForm').reset();
+    async function deleteApp(id) {
+        if(!confirm('確認刪除？')) return;
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+        await init();
+    }
+
+    function openModal(date, time) {
         document.getElementById('formDate').value = date;
         document.getElementById('formTime').value = time;
         document.getElementById('bookingModal').classList.remove('hidden');
@@ -230,7 +258,7 @@
     }
 
     function updatePrice() {
-        const item = rawData.treatments.find(i => i.name === document.getElementById('formItem').value);
+        const item = db.treatments.find(i => i.name === document.getElementById('formItem').value);
         if (item) document.getElementById('formFee').value = item.price;
     }
 
@@ -245,43 +273,20 @@
             fee: document.getElementById('formFee').value,
             notes: document.getElementById('formNotes').value
         };
-
         showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data: data }) });
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data }) });
         closeModal();
-        await initSystem();
-        showLoading(false);
-        Swal.fire('成功', '預約已同步至雲端', 'success');
+        await init();
+        Swal.fire('預約成功', '', 'success');
     };
-
-    async function updateAppStatus(id, status) {
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id: id, status: status }) });
-        await initSystem();
-        showLoading(false);
-    }
-
-    async function deleteApp(id) {
-        const result = await Swal.fire({ title: '確定刪除？', text: "刪除後無法復原", icon: 'warning', showCancelButton: true });
-        if (!result.isConfirmed) return;
-        
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: id }) });
-        await initSystem();
-        showLoading(false);
-    }
 
     function showTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
-        if (tabId === 'calendar-view' && calendar) calendar.render();
+        if(calendar) calendar.render();
     }
 
-    function showLoading(show) {
-        document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
-    }
+    function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
 </script>
-<!-- 引入 Moment.js 方便處理時間運算 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 </body>
 </html>
