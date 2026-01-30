@@ -139,21 +139,17 @@
         showLoading(false);
     }
 
-    function populateDropdowns() {
-        // 治療師下拉
-        const tSelect = document.getElementById('formTherapist');
-        tSelect.innerHTML = '<option value="">選擇治療師</option>' + db.therapists.map(t => {
-            const name = t['姓名'] || t['name'] || Object.values(t)[0]; // 抓第一個欄位
-            return `<option value="${name}">${name}</option>`;
-        }).join('');
+function populateDropdowns() {
+    // 治療師下拉 (假設標題是「姓名」)
+    const tSelect = document.getElementById('formTherapist');
+    tSelect.innerHTML = '<option value="">選擇治療師</option>' + 
+        db.therapists.map(t => `<option value="${t['姓名']}">${t['姓名']}</option>`).join('');
 
-        // 項目下拉
-        const iSelect = document.getElementById('formItem');
-        iSelect.innerHTML = '<option value="">選擇項目</option>' + db.treatments.map(i => {
-            const name = i['項目名稱'] || i['項目'] || i['treatment'] || Object.values(i)[0];
-            return `<option value="${name}">${name}</option>`;
-        }).join('');
-    }
+    // 項目下拉 (確保抓的是「項目名稱」)
+    const iSelect = document.getElementById('formItem');
+    iSelect.innerHTML = '<option value="">選擇項目</option>' + 
+        db.treatments.map(i => `<option value="${i['項目名稱']}">${i['項目名稱']}</option>`).join('');
+}
 
     function renderCalendar(savedDate, savedView) {
         const calendarEl = document.getElementById('calendar');
@@ -195,25 +191,31 @@
         calendar.render();
     }
 
-    function formatEvents(apps) {
-        return apps.map(a => {
-            const cleanDate = (a['日期'] || '').replace(/\//g, '-');
-            const cleanTime = (a['時間'] || '').substring(0, 5);
-            if(!cleanDate || !cleanTime) return null;
+function formatEvents(apps) {
+    return apps.map(a => {
+        const cleanDate = (a['日期'] || '').replace(/\//g, '-');
+        const cleanTime = (a['時間'] || '').substring(0, 5);
+        if(!cleanDate || !cleanTime) return null;
 
-            return {
-                id: a.ID,
-                title: `${a['患者姓名']} / ${a['項目']} (${a['治療師']})`,
-                start: `${cleanDate}T${cleanTime}:00`,
-                end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
-                backgroundColor: a['狀態'] === '已完成' ? '#10b981' : '#4f46e5',
-                extendedProps: {
-                    patient: a['患者姓名'], therapist: a['治療師'], item: a['項目'],
-                    fee: a['費用'], notes: a['備註'], status: a['狀態'], id: a.ID
-                }
-            };
-        }).filter(e => e !== null);
-    }
+        return {
+            id: a['ID'],
+            // 這裡確保抓的是「項目名稱」
+            title: `${a['患者姓名']} / ${a['項目名稱']} (${a['治療師']})`,
+            start: `${cleanDate}T${cleanTime}:00`,
+            end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
+            backgroundColor: a['狀態'] === '已完成' ? '#10b981' : '#4f46e5',
+            extendedProps: {
+                patient: a['患者姓名'], 
+                therapist: a['治療師'], 
+                item: a['項目名稱'], // 修正
+                fee: a['實收費用'], // 修正
+                notes: a['備註'], 
+                status: a['狀態'], 
+                id: a['ID']
+            }
+        };
+    }).filter(e => e !== null);
+}
 
     function calculateEndTime(startTime) {
         let [h, m] = startTime.split(':').map(Number);
@@ -221,17 +223,16 @@
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
-    function updatePrice() {
-        const selectedName = document.getElementById('formItem').value;
-        const item = db.treatments.find(i => {
-            const name = i['項目名稱'] || i['項目'] || i['treatment'] || Object.values(i)[0];
-            return name === selectedName;
-        });
-        if (item) {
-            const price = item['預設收費'] || item['費用'] || item['price'] || Object.values(item)[1];
-            document.getElementById('formFee').value = price;
-        }
+function updatePrice() {
+    const selectedName = document.getElementById('formItem').value;
+    const itemEntry = db.treatments.find(i => i['項目名稱'] === selectedName);
+    
+    if (itemEntry) {
+        // 抓取 Treatments 分頁中的「預設收費」
+        const price = itemEntry['預設收費'];
+        document.getElementById('formFee').value = price;
     }
+}
 
     // Modal 與 API 互動
     function openModal(date = '', time = '') {
