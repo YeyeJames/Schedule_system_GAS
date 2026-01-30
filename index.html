@@ -12,68 +12,53 @@
         
         body { font-family: 'Noto Sans TC', sans-serif; }
 
-        /* --- 解決字體裁切問題 --- */
-        .fc-event-main {
-            padding: 4px 6px !important;
-            line-height: 1.4 !important; /* 增加行高防止裁切 */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
+/* --- 解決字體裁切與顯示問題的終極方案 --- */
 
-        .fc-event-title {
-            font-weight: 700 !important;
-            font-size: 0.95rem !important;
-            white-space: normal !important; /* 允許換行 */
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2; /* 最多顯示兩行 */
-            -webkit-box-orient: vertical;
-            padding-bottom: 2px; /* 底部預留空間防止裁切 */
-        }
+/* 1. 設定所有事件格子的最小高度，確保 50 分鐘的預約不會太扁 */
+.fc-timegrid-event {
+    min-height: 45px !important; 
+    margin-bottom: 1px !important;
+}
 
-        /* --- 月曆事件整體風格 --- */
-        .fc-v-event {
-            border: none !important;
-            border-left: 5px solid rgba(0,0,0,0.15) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-            background-color: #4f46e5; /* 預設深藍 */
-        }
+/* 2. 調整事件內部容器 */
+.fc-event-main {
+    padding: 2px 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important; /* 垂直置中 */
+    overflow: visible !important; /* 允許文字顯示完整 */
+}
 
-        /* --- 進階 Hoover 美化 --- */
-        .fc-timegrid-slot {
-            transition: all 0.2s ease;
-            position: relative;
-        }
-        .fc-timegrid-slot:hover {
-            background-color: #f0f7ff !important;
-        }
-        .fc-timegrid-slot:hover::after {
-            content: '+ 點擊排程';
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 11px;
-            letter-spacing: 1px;
-            color: #3b82f6;
-            font-weight: 900;
-            background: rgba(255,255,255,0.8);
-            padding: 2px 8px;
-            border-radius: 4px;
-            pointer-events: none;
-        }
+/* 3. 調整時間顯示 (上午10:00那行) */
+.fc-event-time {
+    font-size: 10px !important;
+    line-height: 1 !important;
+    margin-bottom: 2px !important;
+    opacity: 0.85;
+    font-weight: 500;
+}
 
-        /* --- 隱藏不必要的捲軸與線條優化 --- */
-        .fc { background: white; border-radius: 1.5rem; overflow: hidden; }
-        .fc-theme-standard td, .fc-theme-standard th { border-color: #f1f5f9 !important; }
-        
-        #loadingOverlay { 
-            position: fixed; inset: 0; background: rgba(255,255,255,0.85); 
-            backdrop-filter: blur(4px); z-index: 9999; 
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-        }
+/* 4. 調整標題顯示 (姓名與項目那行) */
+.fc-event-title {
+    font-size: 12px !important; /* 略微縮小字體以適應寬度 */
+    line-height: 1.1 !important; /* 縮小行高，讓兩行字能塞進小格子 */
+    font-weight: 700 !important;
+    white-space: normal !important; /* 允許換行 */
+    word-break: break-all !important;
+    display: block !important;
+    padding-bottom: 1px !important; /* 給底部留一點點呼吸空間 */
+}
+
+/* 5. 修正 FullCalendar 預設的截斷問題 */
+.fc-v-event .fc-event-main-frame {
+    flex-direction: column !important;
+}
+
+/* 美化：讓格子邊框更圓潤，增加易讀性 */
+.fc-v-event {
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -194,8 +179,12 @@
             nowIndicator: true,
             handleWindowResize: true,
             windowResizeDelay: 100,
+            slotEventOverlap: false,   // 盡量不要讓預約重疊，看得更清楚
+            eventMinHeight: 45,        // 強制最小高度 (單位 px)
+            slotDuration: '00:30:00',  // 每一格改為 30 分鐘，會拉長月曆的垂直空間
             select: function(info) {
                 openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5));
+                
             },
             eventClick: function(info) {
                 const app = info.event.extendedProps;
@@ -218,27 +207,35 @@
                 });
             },
             events: formatEvents(db.appointments)
+            
         });
         calendar.render();
     }
 
-    function formatEvents(apps) {
-        return apps.map(a => {
-            const cleanDate = a.日期.replace(/\//g, '-');
-            const cleanTime = a.時間.substring(0, 5);
-            return {
-                id: a.ID,
-                title: `${a.患者姓名}\n(${a.治療師})`, // 使用換行符號
-                start: `${cleanDate}T${cleanTime}:00`,
-                end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
-                backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#4f46e5',
-                extendedProps: {
-                    patient: a.患者姓名, therapist: a.治療師, item: a.項目,
-                    fee: a.費用, notes: a.備註, status: a.狀態, id: a.ID
-                }
-            };
-        });
-    }
+function formatEvents(apps) {
+    return apps.map(a => {
+        const cleanDate = a.日期.replace(/\//g, '-');
+        const cleanTime = a.時間.substring(0, 5);
+        
+        return {
+            id: a.ID,
+            // 將姓名與治療師放在同一行，用斜線隔開，減少垂直空間佔用
+            title: `${a.患者姓名} / ${a.治療項目 || a.項目} (${a.治療師})`, 
+            start: `${cleanDate}T${cleanTime}:00`,
+            end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
+            backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#4f46e5',
+            extendedProps: {
+                patient: a.患者姓名,
+                therapist: a.治療師,
+                item: a.項目,
+                fee: a.費用,
+                notes: a.備註,
+                status: a.狀態,
+                id: a.ID
+            }
+        };
+    });
+}
 
     function calculateEndTime(startTime) {
         let [h, m] = startTime.split(':').map(Number);
