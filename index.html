@@ -7,256 +7,240 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        
         body { font-family: 'Noto Sans TC', sans-serif; }
 
-/* --- 解決字體裁切與顯示問題的終極方案 --- */
+        /* --- 徹底解決字體裁切方案 --- */
+        .fc-timegrid-event {
+            min-height: 48px !important; /* 強制最小高度 */
+        }
+        .fc-event-main {
+            padding: 4px 6px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important; /* 垂直置中 */
+            line-height: 1.2 !important;
+            overflow: visible !important; 
+        }
+        .fc-event-title {
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            white-space: normal !important;
+            word-break: break-all !important;
+            padding-bottom: 2px !important; /* 底部緩衝避免切字 */
+        }
+        .fc-event-time {
+            font-size: 10px !important;
+            margin-bottom: 2px !important;
+        }
 
-/* 1. 設定所有事件格子的最小高度，確保 50 分鐘的預約不會太扁 */
-.fc-timegrid-event {
-    min-height: 45px !important; 
-    margin-bottom: 1px !important;
-}
+        /* --- Hoover 美化 --- */
+        .fc-timegrid-slot { transition: all 0.2s ease; position: relative; }
+        .fc-timegrid-slot:hover { background-color: #f0f7ff !important; }
+        .fc-timegrid-slot:hover::after {
+            content: '+ 點擊排程';
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            font-size: 11px; color: #3b82f6; font-weight: 900;
+            background: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 4px; pointer-events: none;
+        }
 
-/* 2. 調整事件內部容器 */
-.fc-event-main {
-    padding: 2px 4px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important; /* 垂直置中 */
-    overflow: visible !important; /* 允許文字顯示完整 */
-}
-
-/* 3. 調整時間顯示 (上午10:00那行) */
-.fc-event-time {
-    font-size: 10px !important;
-    line-height: 1 !important;
-    margin-bottom: 2px !important;
-    opacity: 0.85;
-    font-weight: 500;
-}
-
-/* 4. 調整標題顯示 (姓名與項目那行) */
-.fc-event-title {
-    font-size: 12px !important; /* 略微縮小字體以適應寬度 */
-    line-height: 1.1 !important; /* 縮小行高，讓兩行字能塞進小格子 */
-    font-weight: 700 !important;
-    white-space: normal !important; /* 允許換行 */
-    word-break: break-all !important;
-    display: block !important;
-    padding-bottom: 1px !important; /* 給底部留一點點呼吸空間 */
-}
-
-/* 5. 修正 FullCalendar 預設的截斷問題 */
-.fc-v-event .fc-event-main-frame {
-    flex-direction: column !important;
-}
-
-/* 美化：讓格子邊框更圓潤，增加易讀性 */
-.fc-v-event {
-    border-radius: 6px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-}
+        #loadingOverlay { 
+            position: fixed; inset: 0; background: rgba(255,255,255,0.8); 
+            backdrop-filter: blur(4px); z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
 
-<div id="loadingOverlay">
+<div id="loadingOverlay" style="display:none;">
     <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-    <p class="font-black text-indigo-600 tracking-widest text-sm animate-pulse">SYNCHRONIZING...</p>
+    <p class="font-black text-indigo-600 tracking-widest text-sm">同步資料中...</p>
 </div>
 
 <div class="max-w-7xl mx-auto p-4 md:p-6">
-    <!-- 頂部導航 -->
-    <header class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+    <header class="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
         <div class="flex items-center gap-4">
-            <div class="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-100">
+            <div class="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             </div>
             <div>
                 <h1 class="text-xl font-black text-slate-800">診所行政系統 <span class="text-indigo-600">Pro</span></h1>
-                <p class="text-xs text-slate-400 font-bold uppercase tracking-tighter">Medical Appointment Scheduler</p>
             </div>
         </div>
         <div class="flex gap-2 mt-4 md:mt-0">
-            <button onclick="init()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold transition">刷新同步</button>
-            <button onclick="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 transition">快速預約</button>
+            <button onclick="init(true)" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold transition">刷新同步</button>
+            <button onclick="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg transition">快速預約</button>
         </div>
     </header>
 
-    <!-- 月曆容器 -->
-    <div class="bg-white p-2 md:p-4 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-white">
+    <div class="bg-white p-2 md:p-4 rounded-[2.5rem] shadow-2xl border border-white">
         <div id="calendar"></div>
     </div>
 </div>
 
-<!-- 彈窗 Modal -->
+<!-- 預約 Modal -->
 <div id="bookingModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
     <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
         <div class="bg-indigo-600 px-8 py-6 text-white flex justify-between items-center">
             <h3 class="text-xl font-bold">新排程登記</h3>
-            <button onclick="closeModal()" class="bg-indigo-500 hover:bg-indigo-400 w-8 h-8 rounded-full flex items-center justify-center transition">✕</button>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full flex items-center justify-center transition">✕</button>
         </div>
-        <form id="bookingForm" class="p-8 space-y-5">
+        <form id="bookingForm" class="p-8 space-y-4">
             <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[11px] font-black text-slate-400 uppercase ml-1">日期</label>
-                    <input type="date" id="formDate" required class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[11px] font-black text-slate-400 uppercase ml-1">時間</label>
-                    <input type="time" id="formTime" required class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-                </div>
+                <input type="date" id="formDate" required class="bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                <input type="time" id="formTime" required class="bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
             </div>
-            <div class="space-y-1">
-                <label class="text-[11px] font-black text-slate-400 uppercase ml-1">患者姓名</label>
-                <input type="text" id="formName" required placeholder="請輸入姓名" class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-            </div>
+            <input type="text" id="formName" required placeholder="患者姓名" class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
             <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[11px] font-black text-slate-400 uppercase ml-1">負責人</label>
-                    <select id="formTherapist" required class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"></select>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[11px] font-black text-slate-400 uppercase ml-1">治療項目</label>
-                    <select id="formItem" onchange="updatePrice()" required class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"></select>
-                </div>
+                <select id="formTherapist" required class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500"></select>
+                <select id="formItem" onchange="updatePrice()" required class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500"></select>
             </div>
-            <div class="space-y-1">
-                <label class="text-[11px] font-black text-slate-400 uppercase ml-1">實收費用</label>
-                <input type="number" id="formFee" required class="w-full bg-indigo-50 border-none p-3 rounded-2xl font-bold text-indigo-700 outline-none">
-            </div>
-            <div class="space-y-1">
-                <label class="text-[11px] font-black text-slate-400 uppercase ml-1">備註資訊</label>
-                <textarea id="formNotes" class="w-full bg-slate-50 border-none p-3 rounded-2xl h-20 outline-none text-sm" placeholder="特殊狀況說明..."></textarea>
-            </div>
-            <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition">完成預約登記</button>
+            <input type="number" id="formFee" required placeholder="收費金額" class="w-full bg-indigo-50 border-none p-3 rounded-2xl font-bold text-indigo-700 outline-none">
+            <textarea id="formNotes" class="w-full bg-slate-50 border-none p-3 rounded-2xl h-20 outline-none text-sm" placeholder="備註資訊..."></textarea>
+            <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-700 transition">確認預約</button>
         </form>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbz1Lkspl8yY3Jx1E_KcFxg583KYFKnMGQ4i4kQJanfsmhYHiX91q9hrGCErYmMYZspvRQ/exec"; 
+    const API_URL = "你的_GAS_部署_URL"; 
     let calendar;
     let db = { appointments: [], therapists: [], treatments: [] };
 
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => init(false));
 
-    async function init() {
+    async function init(isRefresh = false) {
+        // 1. 記住當前位置
+        let currentScrollDate = null;
+        let currentView = 'timeGridWeek';
+        if (calendar) {
+            currentScrollDate = calendar.getDate();
+            currentView = calendar.view.type;
+        }
+
         showLoading(true);
         try {
             const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'init' }) });
             db = await resp.json();
             
-            document.getElementById('formTherapist').innerHTML = db.therapists.map(t => `<option value="${t.姓名}">${t.姓名}</option>`).join('');
-            document.getElementById('formItem').innerHTML = db.treatments.map(i => `<option value="${i.項目名稱}">${i.項目名稱}</option>`).join('');
+            // 2. 修正選單抓不到資料的問題 (自動檢索多個可能的欄位名稱)
+            populateDropdowns();
 
-            renderCalendar();
+            // 3. 渲染月曆並回到剛才的位置
+            renderCalendar(currentScrollDate, currentView);
         } catch (e) {
-            Swal.fire('Error', '資料同步失敗', 'error');
+            Swal.fire('Error', '連線失敗', 'error');
         }
         showLoading(false);
     }
 
-    function renderCalendar() {
+    function populateDropdowns() {
+        // 治療師下拉
+        const tSelect = document.getElementById('formTherapist');
+        tSelect.innerHTML = '<option value="">選擇治療師</option>' + db.therapists.map(t => {
+            const name = t['姓名'] || t['name'] || Object.values(t)[0]; // 抓第一個欄位
+            return `<option value="${name}">${name}</option>`;
+        }).join('');
+
+        // 項目下拉
+        const iSelect = document.getElementById('formItem');
+        iSelect.innerHTML = '<option value="">選擇項目</option>' + db.treatments.map(i => {
+            const name = i['項目名稱'] || i['項目'] || i['treatment'] || Object.values(i)[0];
+            return `<option value="${name}">${name}</option>`;
+        }).join('');
+    }
+
+    function renderCalendar(savedDate, savedView) {
         const calendarEl = document.getElementById('calendar');
         if (calendar) calendar.destroy();
 
         calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'timeGridWeek',
+            initialView: savedView || 'timeGridWeek',
+            initialDate: savedDate || new Date(), // 這行確保停在原頁面
             headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay,dayGridMonth' },
             locale: 'zh-tw',
             slotMinTime: '08:00:00',
             slotMaxTime: '21:00:00',
             allDaySlot: false,
-            expandRows: true, // 讓橫桿高度自動擴展
             height: 'auto',
             selectable: true,
             nowIndicator: true,
-            handleWindowResize: true,
-            windowResizeDelay: 100,
-            slotEventOverlap: false,   // 盡量不要讓預約重疊，看得更清楚
-            eventMinHeight: 45,        // 強制最小高度 (單位 px)
-            slotDuration: '00:30:00',  // 每一格改為 30 分鐘，會拉長月曆的垂直空間
             select: function(info) {
                 openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5));
-                
             },
             eventClick: function(info) {
                 const app = info.event.extendedProps;
                 Swal.fire({
                     title: `患者: ${app.patient}`,
-                    html: `<div class='text-left text-sm p-2 space-y-2 bg-slate-50 rounded-xl mt-4'>
-                           <p><b>🩺 項目：</b> ${app.item}</p>
-                           <p><b>👤 負責：</b> ${app.therapist}</p>
-                           <p><b>💰 金額：</b> $${app.fee}</p>
-                           <p><b>📝 備註：</b> ${app.notes || '無'}</p>
-                           </div>`,
+                    html: `<div class='text-left text-sm p-3 bg-slate-50 rounded-xl space-y-2 mt-2'>
+                           <p>📋 項目: ${app.item}</p>
+                           <p>🧑‍⚕️ 負責: ${app.therapist}</p>
+                           <p>💰 金額: $${app.fee}</p>
+                           <p>📝 備註: ${app.notes || '無'}</p></div>`,
                     showDenyButton: true,
-                    confirmButtonText: '✔️ 治療完成',
-                    denyButtonText: '❌ 刪除預約',
-                    confirmButtonColor: '#10b981',
-                    denyButtonColor: '#ef4444'
+                    confirmButtonText: '✔️ 完成治療',
+                    denyButtonText: '❌ 刪除預約'
                 }).then(async (result) => {
                     if (result.isConfirmed) handleUpdate(app.id, '已完成');
                     else if (result.isDenied) handleDelete(app.id);
                 });
             },
             events: formatEvents(db.appointments)
-            
         });
         calendar.render();
     }
 
-function formatEvents(apps) {
-    return apps.map(a => {
-        const cleanDate = a.日期.replace(/\//g, '-');
-        const cleanTime = a.時間.substring(0, 5);
-        
-        return {
-            id: a.ID,
-            // 將姓名與治療師放在同一行，用斜線隔開，減少垂直空間佔用
-            title: `${a.患者姓名} / ${a.治療項目 || a.項目} (${a.治療師})`, 
-            start: `${cleanDate}T${cleanTime}:00`,
-            end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
-            backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#4f46e5',
-            extendedProps: {
-                patient: a.患者姓名,
-                therapist: a.治療師,
-                item: a.項目,
-                fee: a.費用,
-                notes: a.備註,
-                status: a.狀態,
-                id: a.ID
-            }
-        };
-    });
-}
+    function formatEvents(apps) {
+        return apps.map(a => {
+            const cleanDate = (a['日期'] || '').replace(/\//g, '-');
+            const cleanTime = (a['時間'] || '').substring(0, 5);
+            if(!cleanDate || !cleanTime) return null;
+
+            return {
+                id: a.ID,
+                title: `${a['患者姓名']} / ${a['項目']} (${a['治療師']})`,
+                start: `${cleanDate}T${cleanTime}:00`,
+                end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
+                backgroundColor: a['狀態'] === '已完成' ? '#10b981' : '#4f46e5',
+                extendedProps: {
+                    patient: a['患者姓名'], therapist: a['治療師'], item: a['項目'],
+                    fee: a['費用'], notes: a['備註'], status: a['狀態'], id: a.ID
+                }
+            };
+        }).filter(e => e !== null);
+    }
 
     function calculateEndTime(startTime) {
         let [h, m] = startTime.split(':').map(Number);
-        m += 50; 
-        if (m >= 60) { h += 1; m -= 60; }
+        m += 50; if (m >= 60) { h += 1; m -= 60; }
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
+    function updatePrice() {
+        const selectedName = document.getElementById('formItem').value;
+        const item = db.treatments.find(i => {
+            const name = i['項目名稱'] || i['項目'] || i['treatment'] || Object.values(i)[0];
+            return name === selectedName;
+        });
+        if (item) {
+            const price = item['預設收費'] || item['費用'] || item['price'] || Object.values(item)[1];
+            document.getElementById('formFee').value = price;
+        }
+    }
+
+    // Modal 與 API 互動
     function openModal(date = '', time = '') {
         document.getElementById('bookingForm').reset();
         if(date) document.getElementById('formDate').value = date;
         if(time) document.getElementById('formTime').value = time;
         document.getElementById('bookingModal').classList.remove('hidden');
     }
-
     function closeModal() { document.getElementById('bookingModal').classList.add('hidden'); }
-
-    function updatePrice() {
-        const item = db.treatments.find(i => i.項目名稱 === document.getElementById('formItem').value);
-        if (item) document.getElementById('formFee').value = item.預設收費;
-    }
 
     document.getElementById('bookingForm').onsubmit = async (e) => {
         e.preventDefault();
@@ -270,22 +254,19 @@ function formatEvents(apps) {
             notes: document.getElementById('formNotes').value
         };
         closeModal();
-        showLoading(true);
         await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data }) });
-        init();
+        init(true); // 刷新並保持位置
     };
 
     async function handleUpdate(id, status) {
-        showLoading(true);
         await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id, status }) });
-        init();
+        init(true);
     }
 
     async function handleDelete(id) {
-        if(!confirm('確認刪除預約？')) return;
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id, status }) });
-        init();
+        if(!confirm('確認刪除？')) return;
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+        init(true);
     }
 
     function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
