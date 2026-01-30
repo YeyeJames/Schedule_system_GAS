@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診所月曆預約系統</title>
+    <!-- CSS 引用 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .fc-event { cursor: pointer; padding: 2px 4px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<div id="loadingOverlay">
+    <div class="text-xl font-bold text-indigo-600">載入系統中...</div>
+</div>
+
+<div class="max-w-7xl mx-auto p-4">
+    <header class="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <h1 class="text-2xl font-black text-indigo-700">診所排程管理</h1>
+        <nav class="space-x-2">
+            <button onclick="showTab('calendar-view')" class="px-4 py-2 rounded bg-indigo-100 text-indigo-700 font-bold">預約月曆</button>
+            <button onclick="showTab('stats-view')" class="px-4 py-2 rounded bg-gray-100 text-gray-700 font-bold">業務統計</button>
+        </nav>
+    </header>
+
+    <!-- 月曆介面 -->
+    <div id="calendar-view" class="tab-content active">
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+    <!-- 統計介面 (簡化版) -->
+    <div id="stats-view" class="tab-content">
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-xl font-bold mb-4">業務數據統計</h2>
+            <div id="statsResult">請先點擊生成報告...</div>
+        </div>
+    </div>
+</div>
+
+<!-- 預約彈窗 (Modal) -->
+<div id="bookingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">登記新預約</h2>
+        <form id="bookingForm" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm">日期</label>
+                    <input type="date" id="formDate" required class="w-full border p-2 rounded">
+                </div>
+                <div>
+                    <label class="block text-sm">時間</label>
+                    <input type="time" id="formTime" required class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <input type="text" id="formName" placeholder="患者姓名" required class="w-full border p-2 rounded">
+            <select id="formTherapist" required class="w-full border p-2 rounded"></select>
+            <select id="formItem" onchange="updatePrice()" required class="w-full border p-2 rounded"></select>
+            <input type="number" id="formFee" placeholder="收費金額" required class="w-full border p-2 rounded bg-yellow-50">
+            
+            <div class="flex space-x-2 pt-4">
+                <button type="button" onclick="closeModal()" class="flex-1 py-2 bg-gray-200 rounded">取消</button>
+                <button type="submit" class="flex-1 py-2 bg-indigo-600 text-white rounded">確認預約</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbxLNLWsezWR4XPibNsDnRqoXZi7BB-PrkW_9es_L4AUSeMzhGbctHpx819KOi5OoxONXw/exec";
+    let calendar;
+    let rawData = { appointments: [], therapists: [], treatments: [] };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initSystem();
+    });
+
+    async function initSystem() {
+        showLoading(true);
+        try {
+            const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'init' }) });
+            rawData = await resp.json();
+            
+            // 填充選單
+            document.getElementById('formTherapist').innerHTML = '<option value="">選擇治療師</option>' + 
+                rawData.therapists.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+            document.getElementById('formItem').innerHTML = '<option value="">選擇治療項目</option>' + 
+                rawData.treatments.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+
+            initCalendar();
+        } catch (e) {
+            Swal.fire('錯誤', '資料載入失敗', 'error');
+        }
+        showLoading(false);
+    }
+
+    function initCalendar() {
+        const calendarEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'timeGridWeek', // 預設顯示週視圖，方便看時間重疊
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            locale: 'zh-tw',
+            slotMinTime: '08:00:00',
+            slotMaxTime: '22:00:00',
+            allDaySlot: false,
+            // 點擊空白處新增
+            dateClick: function(info) {
+                openModal(info.dateStr.split('T')[0], info.dateStr.split('T')[1]?.substring(0,5) || "09:00");
+            },
+            // 點擊事件查看詳情
+            eventClick: function(info) {
+                const app = info.event.extendedProps;
+                Swal.fire({
+                    title: app.patient,
+                    html: `項目: ${app.item}<br>治療師: ${app.therapist}<br>狀態: ${app.status}`,
+                    showDenyButton: true,
+                    confirmButtonText: '設為完成',
+                    denyButtonText: '刪除預約'
+                }).then(async (result) => {
+                    if (result.isConfirmed) updateAppStatus(app.id, '已完成');
+                    else if (result.isDenied) deleteApp(app.id);
+                });
+            },
+            events: formatEvents(rawData.appointments)
+        });
+        calendar.render();
+    }
+
+    function formatEvents(apps) {
+        return apps.map(a => ({
+            id: a.ID,
+            title: `${a.患者姓名} (${a.治療師})`,
+            start: `${a.日期.split('T')[0]}T${a.時間}`,
+            end: calculateEndTime(a.日期.split('T')[0], a.時間),
+            backgroundColor: getEventColor(a.狀態),
+            extendedProps: {
+                patient: a.患者姓名,
+                therapist: a.治療師,
+                item: a.項目,
+                status: a.狀態,
+                id: a.ID
+            }
+        }));
+    }
+
+    function calculateEndTime(date, startTime) {
+        // 預設每個療程 60 分鐘
+        const [h, m] = startTime.split(':');
+        let endH = parseInt(h) + 1;
+        return `${date}T${String(endH).padStart(2, '0')}:${m}`;
+    }
+
+    function getEventColor(status) {
+        if (status === '已完成') return '#10b981'; // Green
+        if (status === '請假') return '#f59e0b'; // Amber
+        return '#6366f1'; // Indigo
+    }
+
+    // Modal 控制
+    function openModal(date = '', time = '') {
+        document.getElementById('formDate').value = date;
+        document.getElementById('formTime').value = time;
+        document.getElementById('bookingModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('bookingModal').classList.add('hidden');
+    }
+
+    function updatePrice() {
+        const item = rawData.treatments.find(i => i.name === document.getElementById('formItem').value);
+        if (item) document.getElementById('formFee').value = item.price;
+    }
+
+    // 提交預約
+    document.getElementById('bookingForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            date: document.getElementById('formDate').value,
+            time: document.getElementById('formTime').value,
+            name: document.getElementById('formName').value,
+            therapist: document.getElementById('formTherapist').value,
+            item: document.getElementById('formItem').value,
+            fee: document.getElementById('formFee').value
+        };
+
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data: data }) });
+        closeModal();
+        await initSystem(); // 重新整理資料與月曆
+        showLoading(false);
+    };
+
+    async function updateAppStatus(id, status) {
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id: id, status: status }) });
+        await initSystem();
+        showLoading(false);
+    }
+
+    async function deleteApp(id) {
+        if(!confirm('確定刪除？')) return;
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: id }) });
+        await initSystem();
+        showLoading(false);
+    }
+
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if (tabId === 'calendar-view' && calendar) calendar.render(); // 重新渲染月曆確保尺寸正確
+    }
+
+    function showLoading(show) {
+        document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+    }
+</script>
+</body>
+</html>
