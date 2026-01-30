@@ -3,161 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinic Pro | 專業排程管理</title>
+    <title>診所排程管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- 引入 moment 處理時間 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <style>
-        /* --- Hoover 功能美化 --- */
+        /* --- 進階 Hoover 美化 --- */
         .fc-timegrid-slot {
-            transition: all 0.2s;
+            transition: background-color 0.2s;
             position: relative;
         }
         .fc-timegrid-slot:hover {
-            background-color: #f0f7ff !important;
-            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.1);
-            cursor: pointer;
+            background-color: #f0f9ff !important; /* 輕盈藍 */
         }
         .fc-timegrid-slot:hover::after {
-            content: '+ 新增預約';
+            content: '+ 點擊預約';
             position: absolute;
-            right: 10px;
+            left: 50%;
             top: 50%;
-            transform: translateY(-50%);
+            transform: translate(-50%, -50%);
             font-size: 12px;
-            color: #3b82f6;
+            color: #0ea5e9;
             font-weight: bold;
-            opacity: 0.6;
+            pointer-events: none;
         }
-
-        /* --- 月曆事件美化 --- */
-        .fc-v-event {
+        /* 月曆事件樣式 */
+        .fc-event {
             border: none !important;
-            border-left: 4px solid rgba(0,0,0,0.2) !important;
-            border-radius: 8px !important;
-            padding: 4px !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+            border-radius: 6px !important;
+            padding: 2px 4px !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .fc-event-title { font-weight: 700 !important; font-size: 13px; }
-        .fc-event-time { font-size: 11px; opacity: 0.9; }
-
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
+<body class="bg-gray-50 text-gray-900">
 
 <div id="loadingOverlay">
-    <div class="animate-bounce mb-4 text-4xl">🗓️</div>
-    <div class="text-indigo-600 font-black tracking-widest animate-pulse">SYSTEM LOADING...</div>
+    <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <p class="font-bold text-blue-600 tracking-widest">資料同步中...</p>
 </div>
 
 <div class="max-w-7xl mx-auto p-4">
-    <header class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mt-4">
-        <div class="flex items-center gap-4">
-            <div class="bg-indigo-600 p-3 rounded-2xl shadow-indigo-200 shadow-lg text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-            </div>
-            <div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Clinic Pro <span class="text-indigo-600">Scheduler</span></h1>
-                <div id="connectionStatus" class="flex items-center text-xs text-green-500 font-bold uppercase tracking-wider">
-                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-ping"></span> 連線中
-                </div>
-            </div>
-        </div>
-        <nav class="flex p-1 bg-slate-100 rounded-2xl mt-4 md:mt-0">
-            <button onclick="showTab('calendar-view')" class="px-6 py-2 rounded-xl bg-white text-indigo-600 font-bold shadow-sm transition">月曆看板</button>
-            <button onclick="showTab('stats-view')" class="px-6 py-2 rounded-xl text-slate-500 font-bold hover:text-indigo-600 transition">業績報表</button>
-        </nav>
-    </header>
+    <div class="flex justify-between items-center mb-6 bg-white p-6 rounded-2xl shadow-sm">
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">診所 <span class="text-blue-600">預約管理</span></h1>
+        <button onclick="init()" class="text-sm bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition">重新整理資料</button>
+    </div>
 
-    <main id="calendar-view" class="tab-content active">
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-white">
-            <div id="calendar"></div>
-        </div>
-    </main>
-
-    <!-- 統計介面 (簡化顯示) -->
-    <main id="stats-view" class="tab-content">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl">
-            <h2 class="text-2xl font-bold mb-6">統計報告 (開發中...)</h2>
-        </div>
-    </main>
+    <div class="bg-white p-4 rounded-3xl shadow-xl border border-gray-100">
+        <div id="calendar"></div>
+    </div>
 </div>
 
-<!-- 新增預約 Modal -->
-<div id="bookingModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex justify-center items-center p-4">
-    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-white">
-        <div class="bg-indigo-600 p-6 text-white flex justify-between items-center">
-            <h3 class="text-xl font-bold">新預約登記</h3>
-            <button onclick="closeModal()" class="text-white/80 hover:text-white">✕</button>
+<!-- 預約視窗 (Modal) -->
+<div id="bookingModal" class="hidden fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
+        <div class="bg-blue-600 p-6 text-white">
+            <h3 class="text-xl font-bold">登記新預約</h3>
         </div>
-        <form id="bookingForm" class="p-8 space-y-5">
+        <form id="bookingForm" class="p-8 space-y-4">
             <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">預約日期</label>
-                    <input type="date" id="formDate" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">起始時間</label>
-                    <input type="time" id="formTime" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                </div>
+                <input type="date" id="formDate" required class="border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400">
+                <input type="time" id="formTime" required class="border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400">
             </div>
-            <div class="space-y-1">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">患者姓名</label>
-                <input type="text" id="formName" required placeholder="例如：王小明" class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-            </div>
+            <input type="text" id="formName" placeholder="患者姓名" required class="w-full border p-3 rounded-xl">
             <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">治療師</label>
-                    <select id="formTherapist" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">項目</label>
-                    <select id="formItem" onchange="updatePrice()" required class="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"></select>
-                </div>
+                <select id="formTherapist" required class="border p-3 rounded-xl"></select>
+                <select id="formItem" onchange="updatePrice()" required class="border p-3 rounded-xl"></select>
             </div>
-            <div class="space-y-1">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">收費金額</label>
-                <input type="number" id="formFee" required class="w-full bg-indigo-50 border-none p-3 rounded-xl font-bold text-indigo-700 outline-none">
+            <input type="number" id="formFee" placeholder="收費金額" required class="w-full border p-3 rounded-xl bg-gray-50 font-bold text-blue-600">
+            <textarea id="formNotes" placeholder="備註事項..." class="w-full border p-3 rounded-xl h-24"></textarea>
+            
+            <div class="flex space-x-2 pt-2">
+                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold">取消</button>
+                <button type="submit" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">確認送出</button>
             </div>
-            <div class="space-y-1">
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">備註</label>
-                <textarea id="formNotes" class="w-full bg-slate-50 border-none p-3 rounded-xl h-20 outline-none text-sm" placeholder="輸入特殊需求..."></textarea>
-            </div>
-            <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition transform hover:-translate-y-1">確認預約</button>
         </form>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwRKHVzuYXtOpl188khy-J9mNwQYpeT5EPSmmugdU0nY_BIkjCj_nD7jXefgHMaoxtokQ/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbz1Lkspl8yY3Jx1E_KcFxg583KYFKnMGQ4i4kQJanfsmhYHiX91q9hrGCErYmMYZspvRQ/exec";
     let calendar;
     let db = { appointments: [], therapists: [], treatments: [] };
 
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
-        showLoading(true);
+        document.getElementById('loadingOverlay').style.display = 'flex';
         try {
             const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'init' }) });
             db = await resp.json();
             
-            console.log("從雲端載入的資料:", db.appointments); // 偵錯用
+            // 偵錯用：如果月曆還是空白，請在瀏覽器按 F12 看看有沒有印出資料
+            console.log("預約資料庫內容:", db.appointments);
 
-            document.getElementById('formTherapist').innerHTML = db.therapists.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
-            document.getElementById('formItem').innerHTML = db.treatments.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+            const tSelect = document.getElementById('formTherapist');
+            tSelect.innerHTML = db.therapists.map(t => `<option value="${t.姓名}">${t.姓名}</option>`).join('');
+            
+            const iSelect = document.getElementById('formItem');
+            iSelect.innerHTML = db.treatments.map(i => `<option value="${i.項目名稱}">${i.項目名稱}</option>`).join('');
 
             renderCalendar();
         } catch (e) {
-            Swal.fire('Error', '無法讀取資料庫，請檢查 API URL', 'error');
+            Swal.fire('連線失敗', '請檢查 GAS 是否正確部署', 'error');
         }
-        showLoading(false);
+        document.getElementById('loadingOverlay').style.display = 'none';
     }
 
     function renderCalendar() {
@@ -166,15 +117,13 @@
 
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridWeek',
-            headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
             locale: 'zh-tw',
             slotMinTime: '08:00:00',
-            slotMaxTime: '22:00:00',
+            slotMaxTime: '21:00:00',
             allDaySlot: false,
-            height: 'auto',
-            navLinks: true,
             selectable: true,
-            nowIndicator: true,
+            // 點擊空白處
             select: function(info) {
                 openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5));
             },
@@ -182,21 +131,15 @@
                 const app = info.event.extendedProps;
                 Swal.fire({
                     title: `患者: ${app.patient}`,
-                    html: `<div class='text-left text-sm space-y-1'>
-                           <p>📋 項目: ${app.item}</p>
-                           <p>🧑‍⚕️ 治療師: ${app.therapist}</p>
-                           <p>💰 金額: $${app.fee}</p>
-                           <p>📝 備註: ${app.notes || '無'}</p>
-                           <p>📍 狀態: ${app.status}</p></div>`,
+                    html: `<div class="text-left text-sm">項目: ${app.item}<br>治療師: ${app.therapist}<br>金額: $${app.fee}<br>備註: ${app.notes || '無'}</div>`,
                     showDenyButton: true,
-                    confirmButtonText: '完成治療',
+                    confirmButtonText: '已完成治療',
                     denyButtonText: '刪除預約'
                 }).then(async (result) => {
-                    if (result.isConfirmed) updateStatus(app.id, '已完成');
-                    else if (result.isDenied) deleteApp(app.id);
+                    if (result.isConfirmed) handleUpdate(app.id, '已完成');
+                    else if (result.isDenied) handleDelete(app.id);
                 });
             },
-            // 將事件渲染到月曆
             events: formatEvents(db.appointments)
         });
         calendar.render();
@@ -204,47 +147,35 @@
 
     function formatEvents(apps) {
         return apps.map(a => {
-            // 拼接 ISO 8601 時間格式: YYYY-MM-DDTHH:mm:ss
-            // 強制格式檢查
-            const startTime = `${a.日期}T${a.時間}:00`;
-            const isValid = moment(startTime).isValid();
+            // 格式化日期：將 2023/10/25 轉為 2023-10-25
+            const cleanDate = a.日期.replace(/\//g, '-');
+            const cleanTime = a.時間.substring(0, 5); // 確保是 HH:mm
             
-            if(!isValid) {
-                console.warn("跳過無效預約資料:", a);
-                return null;
-            }
-
             return {
                 id: a.ID,
                 title: `${a.患者姓名} (${a.治療師})`,
-                start: startTime,
-                end: moment(startTime).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'),
-                backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#4f46e5',
+                start: `${cleanDate}T${cleanTime}:00`,
+                // 結束時間設定為 50 分鐘後
+                end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
+                backgroundColor: a.狀態 === '已完成' ? '#10b981' : '#3b82f6',
                 extendedProps: {
                     patient: a.患者姓名,
                     therapist: a.治療師,
                     item: a.項目,
-                    status: a.狀態,
                     fee: a.費用,
                     notes: a.備註,
+                    status: a.狀態,
                     id: a.ID
                 }
             };
-        }).filter(e => e !== null);
+        });
     }
 
-    // Modal 與 API 互動 (同上個版本，但確保 add 時包含 notes)
-    async function updateStatus(id, status) {
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id, status }) });
-        await init();
-    }
-
-    async function deleteApp(id) {
-        if(!confirm('確認刪除？')) return;
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
-        await init();
+    function calculateEndTime(startTime) {
+        let [h, m] = startTime.split(':').map(Number);
+        m += 50; 
+        if (m >= 60) { h += 1; m -= 60; }
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
     function openModal(date, time) {
@@ -258,8 +189,8 @@
     }
 
     function updatePrice() {
-        const item = db.treatments.find(i => i.name === document.getElementById('formItem').value);
-        if (item) document.getElementById('formFee').value = item.price;
+        const item = db.treatments.find(i => i.項目名稱 === document.getElementById('formItem').value);
+        if (item) document.getElementById('formFee').value = item.預設收費;
     }
 
     document.getElementById('bookingForm').onsubmit = async (e) => {
@@ -273,20 +204,24 @@
             fee: document.getElementById('formFee').value,
             notes: document.getElementById('formNotes').value
         };
-        showLoading(true);
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data }) });
         closeModal();
-        await init();
-        Swal.fire('預約成功', '', 'success');
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data }) });
+        init();
     };
 
-    function showTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
-        if(calendar) calendar.render();
+    async function handleUpdate(id, status) {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id, status }) });
+        init();
     }
 
-    function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
+    async function handleDelete(id) {
+        if(!confirm('確認刪除預約？')) return;
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+        init();
+    }
 </script>
 </body>
 </html>
