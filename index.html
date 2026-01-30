@@ -3,99 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinic Pro | 行政管理系統</title>
+    <title>Clinic Pro | 專業排程系統</title>
+    <!-- 引用必要庫 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
 
-        /* --- Hoover 效果強化 --- */
+        /* --- 1. Hoover 效果：變大與鼠標改變 --- */
         .fc-event {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-            cursor: zoom-in !important; /* 鼠標改變 */
-            z-index: 1;
+            transition: all 0.2s ease-out !important;
+            cursor: zoom-in !important;
         }
         .fc-event:hover {
-            transform: scale(1.05); /* 項目稍微變大 */
-            z-index: 50 !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2) !important;
+            transform: scale(1.04);
+            z-index: 100 !important;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
         }
 
-        /* --- 排版與字體優化 --- */
-        .fc-v-event { border: none !important; border-left: 4px solid rgba(0,0,0,0.2) !important; border-radius: 8px !important; }
-        .fc-event-main { padding: 3px 5px !important; display: flex !important; flex-direction: column !important; justify-content: center !important; line-height: 1.1 !important; overflow: visible !important; }
-        .fc-event-title { font-size: 11px !important; font-weight: 700 !important; white-space: normal !important; padding-bottom: 2px !important; }
-        .fc-event-time { font-size: 10px !important; font-weight: 700; opacity: 0.8; margin-bottom: 1px; }
+        /* --- 2. 徹底解決字體裁切 --- */
+        .fc-v-event { border: none !important; border-left: 5px solid rgba(0,0,0,0.2) !important; border-radius: 8px !important; }
+        .fc-event-main { padding: 4px 6px !important; display: flex !important; flex-direction: column !important; justify-content: center !important; line-height: 1.2 !important; overflow: visible !important; }
+        .fc-event-title { font-size: 11.5px !important; font-weight: 700 !important; white-space: normal !important; word-break: break-all !important; padding-bottom: 2px !important; }
+        .fc-event-time { font-size: 10px !important; font-weight: 700; opacity: 0.9; margin-bottom: 1px; }
 
-        /* 導航標題 */
-        .fc .fc-nav-link { color: #4f46e5 !important; font-weight: bold; }
+        /* --- 3. 導航功能 --- */
+        .fc .fc-nav-link { color: #4f46e5 !important; font-weight: bold; text-decoration: none; }
+        .fc .fc-nav-link:hover { text-decoration: underline; }
 
-        /* 隱藏預設 Swal 按鈕以使用自定義按鈕 */
-        .swal2-actions { margin-top: 1.5rem !important; }
-
-        #loadingOverlay { 
-            position: fixed; inset: 0; background: rgba(255,255,255,0.8); 
-            backdrop-filter: blur(4px); z-index: 9999; 
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-        }
+        #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay" style="display:none;">
+<div id="loadingOverlay">
     <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-    <p class="font-black text-indigo-600 text-sm">正在同步雲端...</p>
+    <p class="font-black text-indigo-600">正在獲取雲端排程...</p>
 </div>
 
 <div class="max-w-7xl mx-auto p-4 md:p-6">
-    <header class="flex justify-between items-center mb-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+    <header class="flex justify-between items-center mb-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
         <div class="flex items-center gap-4">
-            <div class="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-100">
+            <div class="bg-indigo-600 p-3 rounded-2xl text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             </div>
             <h1 class="text-xl font-black text-slate-800">診所行政系統 Pro</h1>
         </div>
-        <button onclick="init(true)" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm font-bold transition">刷新排程</button>
+        <div class="space-x-2">
+            <button onclick="init(true)" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm font-bold transition">刷新同步</button>
+            <button onclick="openModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 transition">快速新增</button>
+        </div>
     </header>
 
-    <div class="bg-white p-2 md:p-4 rounded-[2.5rem] shadow-2xl border border-white">
+    <div class="bg-white p-2 md:p-4 rounded-[2.5rem] shadow-2xl border border-white min-h-[600px]">
         <div id="calendar"></div>
     </div>
 </div>
 
-<!-- 新增預約 Modal (略, 與前版本相同) -->
+<!-- 新增預約 Modal -->
 <div id="bookingModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex justify-center items-center p-4">
-    <!-- ... 預約表單內容 ... -->
+    <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
+        <div class="bg-indigo-600 px-8 py-6 text-white flex justify-between items-center">
+            <h3 class="text-xl font-bold">新排程登記</h3>
+            <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+        <form id="bookingForm" class="p-8 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <input type="date" id="formDate" required class="bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                <input type="time" id="formTime" required class="bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <input type="text" id="formName" required placeholder="患者姓名" class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+            <div class="grid grid-cols-2 gap-4">
+                <select id="formTherapist" required class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500"></select>
+                <select id="formItem" onchange="updatePrice()" required class="w-full bg-slate-50 border-none p-3 rounded-2xl outline-none text-sm focus:ring-2 focus:ring-indigo-500"></select>
+            </div>
+            <input type="number" id="formFee" required placeholder="收費金額" class="w-full bg-indigo-50 border-none p-3 rounded-2xl font-bold text-indigo-700 outline-none">
+            <textarea id="formNotes" class="w-full bg-slate-50 border-none p-3 rounded-2xl h-20 outline-none text-sm" placeholder="備註資訊..."></textarea>
+            <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-700 transition">完成預約</button>
+        </form>
+    </div>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbyFhdESVFhovTJrT5NsrufXxRw1l4VLE_3U5NIFDJi-RV2n4bbq68YzGspNZYHEYsi3XA/exec"; 
+    // --- 務必修改此處 ---
+    const API_URL = "https://script.google.com/macros/s/AKfycbxIjIr3fFa0dP6rX-GEp9oOUCxGctsShz5XeCm7_Gqx6Wqn47WnJEPGAHY472br1377zw/exec"; 
+    
     let calendar;
     let db = { appointments: [], therapists: [], treatments: [] };
 
     document.addEventListener('DOMContentLoaded', () => init(false));
 
     async function init(isRefresh = false) {
-        let savedDate = calendar ? calendar.getDate() : null;
-        let savedView = calendar ? calendar.view.type : null;
+        const savedDate = (calendar) ? calendar.getDate() : null;
+        const savedView = (calendar) ? calendar.view.type : null;
+
         showLoading(true);
         try {
-            const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'init' }) });
-            db = await resp.json();
+            const resp = await fetch(API_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: 'init' }) 
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            db = data;
+            
             populateDropdowns();
             renderCalendar(savedDate, savedView);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error("初始化錯誤:", e);
+            Swal.fire('系統錯誤', '無法抓取雲端資料，請檢查 API URL 或網路連線。', 'error');
+        }
         showLoading(false);
+    }
+
+    function populateDropdowns() {
+        const tSelect = document.getElementById('formTherapist');
+        tSelect.innerHTML = '<option value="">選擇治療師</option>' + db.therapists.map(t => {
+            const name = t['姓名'] || Object.values(t)[0];
+            return `<option value="${name}">${name}</option>`;
+        }).join('');
+
+        const iSelect = document.getElementById('formItem');
+        iSelect.innerHTML = '<option value="">選擇項目</option>' + db.treatments.map(i => {
+            const name = i['項目名稱'] || Object.values(i)[0];
+            return `<option value="${name}">${name}</option>`;
+        }).join('');
     }
 
     function renderCalendar(savedDate, savedView) {
         const calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
         if (calendar) calendar.destroy();
+
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: savedView || 'timeGridWeek',
             initialDate: savedDate || new Date(),
@@ -108,60 +153,54 @@
             selectable: true,
             navLinks: true,
             nowIndicator: true,
-            select: function(info) { openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5)); },
+            select: function(info) {
+                openModal(info.startStr.split('T')[0], info.startStr.split('T')[1].substring(0,5));
+            },
             eventClick: function(info) {
-                const app = info.event.extendedProps;
-                showCheckInModal(app);
+                showActionMenu(info.event.extendedProps);
             },
             events: formatEvents(db.appointments)
         });
         calendar.render();
     }
 
-    // --- 重整報到視窗與按鈕功能 ---
-    function showCheckInModal(app) {
+    // --- 重整報到視窗按鈕 (五大按鈕) ---
+    function showActionMenu(app) {
         Swal.fire({
             title: `<span class="text-xl font-black">患者：${app.patient}</span>`,
             html: `
-                <div class="text-left text-sm bg-slate-50 p-4 rounded-2xl mb-6 space-y-1">
-                    <p><b>🩺 項目：</b> ${app.item}</p>
-                    <p><b>👤 治療師：</b> ${app.therapist}</p>
-                    <p><b>💰 金額：</b> $${app.fee}</p>
-                    <p><b>📍 目前狀態：</b> <span class="text-indigo-600 font-bold">${app.status}</span></p>
-                    <p><b>📝 備註：</b> <span id="modal-notes-text">${app.notes || '無'}</span></p>
+                <div class="text-left text-sm bg-slate-50 p-4 rounded-2xl mb-6 space-y-1 border border-slate-100">
+                    <p>📋 項目：${app.item}</p>
+                    <p>👤 治療師：${app.therapist}</p>
+                    <p>💰 金額：$${app.fee}</p>
+                    <p>📍 狀態：<span class="text-indigo-600 font-bold">${app.status}</span></p>
+                    <p>📝 備註：<span class="italic text-slate-500">${app.notes || '無'}</span></p>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
-                    <button id="btn-done" class="bg-emerald-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-emerald-600">報到繳費</button>
-                    <button id="btn-cancel-check" class="bg-slate-200 text-slate-600 p-3 rounded-xl text-xs font-bold hover:bg-slate-300">取消報到</button>
-                    <button id="btn-leave" class="bg-amber-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-amber-600">請假</button>
-                    <button id="btn-edit-note" class="bg-indigo-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-indigo-600">編輯備註</button>
-                    <button id="btn-delete" class="bg-rose-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-rose-600">刪除</button>
-                    <button id="btn-close" class="bg-slate-400 text-white p-3 rounded-xl text-xs font-bold">關閉</button>
+                    <button id="btn-1" class="bg-emerald-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-emerald-600">報到繳費</button>
+                    <button id="btn-2" class="bg-slate-200 text-slate-600 p-3 rounded-xl text-xs font-bold hover:bg-slate-300">取消報到</button>
+                    <button id="btn-3" class="bg-amber-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-amber-600">請假</button>
+                    <button id="btn-4" class="bg-indigo-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-indigo-600">編輯備註</button>
+                    <button id="btn-5" class="bg-rose-500 text-white p-3 rounded-xl text-xs font-bold hover:bg-rose-600">刪除</button>
+                    <button id="btn-6" class="bg-slate-400 text-white p-3 rounded-xl text-xs font-bold">關閉</button>
                 </div>
             `,
-            showConfirmButton: false, // 隱藏預設按鈕
+            showConfirmButton: false,
             didOpen: () => {
-                // 1. 報到繳費
-                document.getElementById('btn-done').onclick = () => { Swal.close(); handleUpdate(app.id, '已完成'); };
-                // 2. 取消報到 (恢復為已預約)
-                document.getElementById('btn-cancel-check').onclick = () => { Swal.close(); handleUpdate(app.id, '已預約'); };
-                // 3. 請假
-                document.getElementById('btn-leave').onclick = () => { Swal.close(); handleUpdate(app.id, '請假'); };
-                // 4. 編輯備註
-                document.getElementById('btn-edit-note').onclick = () => { handleEditNotes(app); };
-                // 5. 刪除
-                document.getElementById('btn-delete').onclick = () => { Swal.close(); handleDelete(app.id); };
-                // 關閉
-                document.getElementById('btn-close').onclick = () => { Swal.close(); };
+                document.getElementById('btn-1').onclick = () => { Swal.close(); handleUpdate(app.id, '已完成'); };
+                document.getElementById('btn-2').onclick = () => { Swal.close(); handleUpdate(app.id, '已預約'); };
+                document.getElementById('btn-3').onclick = () => { Swal.close(); handleUpdate(app.id, '請假'); };
+                document.getElementById('btn-4').onclick = () => { editNotes(app); };
+                document.getElementById('btn-5').onclick = () => { Swal.close(); handleDelete(app.id); };
+                document.getElementById('btn-6').onclick = () => { Swal.close(); };
             }
         });
     }
 
-    async function handleEditNotes(app) {
+    async function editNotes(app) {
         const { value: text } = await Swal.fire({
             title: '編輯備註',
             input: 'textarea',
-            inputLabel: '請輸入新的備註內容',
             inputValue: app.notes || '',
             showCancelButton: true
         });
@@ -175,40 +214,40 @@
         }
     }
 
-    // --- 其他原有功能 ---
     function formatEvents(apps) {
         return apps.map(a => {
-            const v = Object.values(a);
-            const dateStr = a['日期'] || v[1];
-            const timeStr = a['時間'] || v[2];
+            const values = Object.values(a);
+            const dateStr = a['日期'] || values[1];
+            const timeStr = a['時間'] || values[2];
             if(!dateStr || !timeStr) return null;
             const cleanDate = dateStr.toString().replace(/\//g, '-');
             const cleanTime = timeStr.toString().substring(0, 5);
-            const status = a['狀態'] || v[7];
-            
-            let color = '#4f46e5'; // 預設藍 (已預約)
-            if (status === '已完成') color = '#10b981'; // 綠
-            if (status === '請假') color = '#f59e0b'; // 橘
+            const status = a['狀態'] || values[7];
+
+            let bgColor = '#4f46e5'; // 已預約 (藍)
+            if (status === '已完成') bgColor = '#10b981'; // 報到繳費 (綠)
+            if (status === '請假') bgColor = '#f59e0b'; // 請假 (橘)
 
             return {
-                id: a['ID'] || v[0],
-                title: `${a['患者姓名'] || v[3]} / ${a['項目名稱'] || v[5]}`,
+                id: a['ID'] || values[0],
+                title: `${a['患者姓名'] || values[3]} / ${a['項目名稱'] || values[5]}`,
                 start: `${cleanDate}T${cleanTime}:00`,
                 end: moment(`${cleanDate}T${cleanTime}:00`).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'),
-                backgroundColor: color,
+                backgroundColor: bgColor,
                 extendedProps: {
-                    patient: a['患者姓名'] || v[3],
-                    therapist: a['治療師'] || v[4],
-                    item: a['項目名稱'] || v[5],
-                    fee: a['實收費用'] || v[6],
-                    notes: a['備註'] || v[9],
+                    patient: a['患者姓名'] || values[3],
+                    therapist: a['治療師'] || values[4],
+                    item: a['項目名稱'] || values[5],
+                    fee: a['實收費用'] || values[6],
+                    notes: a['備註'] || values[9],
                     status: status,
-                    id: a['ID'] || v[0]
+                    id: a['ID'] || values[0]
                 }
             };
         }).filter(e => e !== null);
     }
 
+    // --- 基礎 API 互動 ---
     async function handleUpdate(id, status) {
         showLoading(true);
         await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'update', id, status }) });
@@ -216,15 +255,45 @@
     }
 
     async function handleDelete(id) {
-        const result = await Swal.fire({ title: '確認刪除？', icon: 'warning', showCancelButton: true });
-        if (result.isConfirmed) {
+        const res = await Swal.fire({ title: '確認刪除？', icon: 'warning', showCancelButton: true });
+        if (res.isConfirmed) {
             showLoading(true);
             await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
             init(true);
         }
     }
 
-    // (populateDropdowns, updatePrice, openModal, closeModal 等函數維持不變)
+    function updatePrice() {
+        const val = document.getElementById('formItem').value;
+        const item = db.treatments.find(i => (i['項目名稱'] || Object.values(i)[0]) === val);
+        if (item) document.getElementById('formFee').value = item['預設收費'] || Object.values(item)[1];
+    }
+
+    function openModal(d = '', t = '') {
+        document.getElementById('bookingForm').reset();
+        document.getElementById('formDate').value = d;
+        document.getElementById('formTime').value = t;
+        document.getElementById('bookingModal').classList.remove('hidden');
+    }
+    function closeModal() { document.getElementById('bookingModal').classList.add('hidden'); }
+
+    document.getElementById('bookingForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            date: document.getElementById('formDate').value,
+            time: document.getElementById('formTime').value,
+            name: document.getElementById('formName').value,
+            therapist: document.getElementById('formTherapist').value,
+            item: document.getElementById('formItem').value,
+            fee: document.getElementById('formFee').value,
+            notes: document.getElementById('formNotes').value
+        };
+        closeModal();
+        showLoading(true);
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', data }) });
+        init(true);
+    };
+
     function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
 </script>
 </body>
