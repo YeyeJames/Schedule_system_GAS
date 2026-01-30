@@ -192,26 +192,51 @@ function populateDropdowns() {
     }
 
 function formatEvents(apps) {
-    return apps.map(a => {
-        const cleanDate = (a['日期'] || '').replace(/\//g, '-');
-        const cleanTime = (a['時間'] || '').substring(0, 5);
-        if(!cleanDate || !cleanTime) return null;
+    console.log("正在解析預約資料...", apps); // 偵錯用，可在瀏覽器 F12 看到
+    
+    if (!apps || apps.length === 0) return [];
+
+    return apps.map((a, index) => {
+        // --- 強大偵錯與相容性處理 ---
+        // 取得物件的所有值，萬一標題對不上，我們可以用順序(Index)來抓
+        const values = Object.values(a);
+        
+        // 根據您提供的 Appointments 標題順序：
+        // 0:ID, 1:日期, 2:時間, 3:患者姓名, 4:治療師, 5:項目名稱, 6:實收費用, 7:狀態, 8:建立時間, 9:備註
+        
+        const id = a['ID'] || values[0];
+        const dateStr = a['日期'] || values[1];
+        const timeStr = a['時間'] || values[2];
+        const patientName = a['患者姓名'] || values[3];
+        const therapistName = a['治療師'] || values[4];
+        const itemName = a['項目名稱'] || values[5];
+        const fee = a['實收費用'] || values[6];
+        const status = a['狀態'] || values[7];
+        const notes = a['備註'] || values[9];
+
+        // 格式化日期與時間
+        if (!dateStr || !timeStr) return null;
+        const cleanDate = dateStr.toString().replace(/\//g, '-').trim();
+        const cleanTime = timeStr.toString().substring(0, 5).trim();
+
+        // 拼接成 FullCalendar 要求的 ISO 格式
+        const startISO = `${cleanDate}T${cleanTime}:00`;
 
         return {
-            id: a['ID'],
-            // 這裡確保抓的是「項目名稱」
-            title: `${a['患者姓名']} / ${a['項目名稱']} (${a['治療師']})`,
-            start: `${cleanDate}T${cleanTime}:00`,
-            end: `${cleanDate}T${calculateEndTime(cleanTime)}:00`,
-            backgroundColor: a['狀態'] === '已完成' ? '#10b981' : '#4f46e5',
+            id: id,
+            // 月曆方塊上顯示的文字
+            title: `${patientName} / ${itemName}`, 
+            start: startISO,
+            end: moment(startISO).add(50, 'minutes').format('YYYY-MM-DDTHH:mm:ss'),
+            backgroundColor: status === '已完成' ? '#10b981' : '#4f46e5',
             extendedProps: {
-                patient: a['患者姓名'], 
-                therapist: a['治療師'], 
-                item: a['項目名稱'], // 修正
-                fee: a['實收費用'], // 修正
-                notes: a['備註'], 
-                status: a['狀態'], 
-                id: a['ID']
+                patient: patientName,
+                therapist: therapistName,
+                item: itemName,
+                fee: fee,
+                notes: notes,
+                status: status,
+                id: id
             }
         };
     }).filter(e => e !== null);
@@ -225,15 +250,20 @@ function formatEvents(apps) {
 
 function updatePrice() {
     const selectedName = document.getElementById('formItem').value;
-    const itemEntry = db.treatments.find(i => i['項目名稱'] === selectedName);
-    
+    if (!selectedName) return;
+
+    // 在 db.treatments 中尋找
+    const itemEntry = db.treatments.find(i => {
+        const name = i['項目名稱'] || Object.values(i)[0];
+        return name === selectedName;
+    });
+
     if (itemEntry) {
-        // 抓取 Treatments 分頁中的「預設收費」
-        const price = itemEntry['預設收費'];
+        // 抓取 Treatments 分頁中的第二欄「預設收費」
+        const price = itemEntry['預設收費'] || Object.values(itemEntry)[1];
         document.getElementById('formFee').value = price;
     }
 }
-
     // Modal 與 API 互動
     function openModal(date = '', time = '') {
         document.getElementById('bookingForm').reset();
